@@ -296,6 +296,56 @@ class Segment implements RouteInterface
         $skip      = true;
         $skippable = false;
 
+//CHANGED
+        $parts = array_reverse($parts);
+        foreach ($parts as $part) {
+            switch ($part[0]) {
+                case 'literal':
+                    $path = $part[1].$path;
+                    break;
+
+                case 'parameter':
+                    $skippable = true;
+                    if ($part[1] == 'action' && $options['actionCanBeEmpty']) {
+                        $skippable = false;
+                    }
+                    if (! isset($mergedParams[$part[1]])) {
+                        if (! $isOptional || $hasChild) {
+                            throw new Exception\InvalidArgumentException(sprintf('Missing parameter "%s"', $part[1]));
+                        }
+
+                        return '';
+                    } elseif (! $isOptional
+                        || $hasChild
+                        || ! isset($this->defaults[$part[1]])
+                        || $this->defaults[$part[1]] !== $mergedParams[$part[1]]
+                    ) {
+
+                      $skip = false;
+                    }
+
+                    $path = $this->encode($mergedParams[$part[1]]).$path;
+                    $this->assembledParams[] = $part[1];
+                    break;
+
+                case 'optional':
+                    $skippable    = true;
+                    $options['actionCanBeEmpty'] = (bool) ($path != '');
+                    $optionalPart = $this->buildPath($part[1], $mergedParams, true, $hasChild, $options);
+
+                    if ($optionalPart !== '') {
+                        $path = $optionalPart.$path;
+                        $skip  = false;
+                    }
+                    break;
+
+                case 'translated-literal':
+                    $path = $translator->translate($part[1], $textDomain, $locale).$path;
+                    break;
+            }
+        }
+
+/*
         foreach ($parts as $part) {
             switch ($part[0]) {
                 case 'literal':
@@ -339,6 +389,7 @@ class Segment implements RouteInterface
                     break;
             }
         }
+*/
 
         if ($isOptional && $skippable && $skip) {
             return '';
